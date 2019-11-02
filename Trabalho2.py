@@ -44,31 +44,46 @@ df['Photo'] = df['Player'].apply(build_photo_link)
 players = df['Player'].sort_values().unique()
 print('Jogadores:', len(players))
 
-app = dash.Dash(__name__)
+external_stylesheets = ["https://codepen.io/chriddyp/pen/bWLwgP.css"]
 
-player_name = 'James Young'
-player = df[df['Player'] == player_name]
-
-player
+app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 
 app.layout = html.Div(children=[
     html.H1(children='NBA Players since 1950'),
-    dcc.Graph(
-        id='example-graph-2',
-        figure={
-            'data': [
-                {'x': player['Year'], 'y': player['PTS'], 'type': 'bar', 'name': player_name}
-            ]
-        }
+    dcc.Dropdown(
+        id='player-select',
+        options=[{'label': p, 'value': p} for p in players],
+        multi=False
     ),
+    dcc.Graph(id='graph-pts', figure={'data': []}),
+    dcc.Graph(id='graph-efg', figure={'data': []}),
+    html.Img(id='photo', src='', alt='Photo not available'),
     dash_table.DataTable(
-        id="table",
-        columns=[{"name": i, "id": i} for i in player.columns],
-        data=player.to_dict('records'),
-    ),
-    html.Img(
-        src=player['Photo'].to_list()[0]
+        id='table',
+        columns=[{"name": i, "id": i} for i in df.columns],
+        data=[]
     )
 ])
+
+@app.callback([
+    dash.dependencies.Output('photo', 'src'),
+    dash.dependencies.Output('graph-pts', 'figure'),
+    dash.dependencies.Output('graph-efg', 'figure'),
+    dash.dependencies.Output('table', 'data')],
+    [dash.dependencies.Input('player-select', 'value')])
+def update_dashboard(player_name):
+    if (player_name is not None):
+        player = df[df['Player'] == player_name]
+        photo = player['Photo'].to_list()[0]
+        pts = {'data': [{'x': player['Year'], 'y': player['PTS'], 'type': 'line', 'name': player_name}]}
+        efg = {'data': [{'x': player['Year'], 'y': player['eFG%'], 'type': 'line', 'name': player_name}]}
+        table_data = player.to_dict('records')
+    else:
+        photo = ''
+        pts = {'data':[]}
+        efg = {'data':[]}
+        table_data = []
+    return photo, pts, efg, table_data
+
 if __name__ == '__main__':
     app.run_server(debug=True)
