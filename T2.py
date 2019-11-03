@@ -4,6 +4,7 @@ import chart_studio.plotly as py
 #import plotly.chart_studio.plotly as py
 import plotly.graph_objs as go
 import plotly.offline as offline
+import plotly.express as px
 
 offline.init_notebook_mode(connected=True)
 
@@ -12,26 +13,32 @@ from datetime import datetime
 import pandas as pd
 pd.core.common.is_list_like = pd.api.types.is_list_like
 
-#import pandas_datareader.data as web
+
+ds = pd.read_csv('C:\\PUCRS\\VD\\Seasons_Stats.csv',sep=";")
+
+ds.drop(['Unnamed: 0'], axis=1, inplace=True)
+
+ds_player = pd.DataFrame(ds.groupby(['Player','Year']).agg({'Year':'min','PTS':'sum'}))[['PTS']]
+
+ds_player.reset_index(level='Year',inplace=True) 
+
+ds_player['Year_Ini'] = ds_player.groupby(['Player'])[['Year']].min().astype(int)
+ds_player['Qtd'] = 1
+#ds_player['num_season_col'] = 1 + ds_player['Year'].astype(int) - ds_player['Year_Ini']
+ds_player['num_season_col'] = ds_player.groupby(['Player'])['Qtd'].cumsum().astype(int)
+ds_player['tot_pts_acum'] = ds_player.groupby(['Player'])['PTS'].cumsum().astype(int)
+
+top_player_pts = list(pd.DataFrame(ds_player.groupby(['Player']).agg({'PTS':'sum'}).sort_values('PTS', ascending=False)[:50]).index)
 
 
-ds = pd.read_csv('C:\\PUCRS\\VD\\seasons_stats_player_pts_accum.csv', index_col =['player','num_season'])
+ds_top_player = ds_player.loc[top_player_pts]
 
-top_player_pts = list(pd.DataFrame(ds.groupby(['player']).agg({'tot_pts':'sum'}).sort_values('tot_pts', ascending=False)[:5]).index)
+#ds_top_player['tot_pts_acum'] = ds_top_player.groupby(['player'])['tot_pts'].cumsum()
+#ds_top_player['num_season_col'] = ds_top_player.index.get_level_values('num_season') 
 
-#type(top_player_pts)
+#ds_top_player.loc['Michael Jordan*']
 
-#ds[(ds['player'] == 'Kareem Abdul-Jabbar*')]
-
-ds_top_player = ds.loc[top_player_pts]
-
-
-ds_top_player['tot_pts_acum'] = ds_top_player.groupby(['player'])['tot_pts'].cumsum()
-ds_top_player['num_season_col'] = ds_top_player.index.get_level_values('num_season') 
-
-#ds_top_player.loc['Kareem Abdul-Jabbar*'].num_season_col
-
-ds_top_player.head()
+#ds_top_player.head()
 
 plotly_color = ['#1f77b4',  # muted blue
     '#ff7f0e',  # safety orange
@@ -48,20 +55,21 @@ plotly_color = ['#1f77b4',  # muted blue
 # #### Plot a graph of high price vs date
 # This will produce a time series
 
-
-trace = []
 nome_title = 'Top Jogadores da NBA'
 
 fig = go.Figure()
 
-for i,nome_jogador in enumerate(top_player_pts):
-    print(top_player_pts[i],plotly_color[i])
-    fig.add_trace(go.Scatter(x=ds_top_player.loc[top_player_pts[i]].num_season_col,
-                            y=ds_top_player.loc[top_player_pts[i]].tot_pts_acum,
-                            name = nome_jogador,
-                            line = dict(color = plotly_color[i])
+for i,nome_jogador in enumerate(top_player_pts[0:5]):
+    print(nome_jogador,i)
+    fig.add_trace(go.Scatter(x=ds_top_player.loc[nome_jogador].num_season_col.astype(int),
+                             y=ds_top_player.loc[nome_jogador].tot_pts_acum.astype(int),
+                             name = nome_jogador,
+                             text=ds_top_player.loc[nome_jogador].Year.astype(int)
+                             #line = dict(color = plotly_color[i])
                             )
                 )
+
+#fig.show()
 
 # Add annotations
 fig.update_layout(
@@ -93,6 +101,14 @@ fig.update_layout(
     ],
 )
 
+fig.update_traces(
+    hoverinfo="name+x+text",
+    line={"width": 2.0},
+    marker={"size": 8},
+    mode="lines+markers",
+    showlegend=True
+)
+
 
 # Add shapes
 fig.update_layout(
@@ -104,7 +120,7 @@ fig.update_layout(
             x0=0,
             x1=7,
             xref="x",
-            y0=0.05,
+            y0=0.02,
             y1=0.95,
             yref="paper"
         ),
@@ -115,7 +131,7 @@ fig.update_layout(
             x0=7,
             x1=14,
             xref="x",
-            y0=0.05,
+            y0=0.02,
             y1=0.95,
             yref="paper"
         )
@@ -136,22 +152,16 @@ fig.update_layout(
 )
 
 
+fig.update_xaxes(title_text='Quantidade de Temporadas',tick0=1, dtick=1)
+fig.update_yaxes(title_text='Pontos',tick0=2000, dtick=2000)
 
-
-fig.update_traces(
-    hoverinfo="name+x+text",
-    line={"width": 2.0},
-    marker={"size": 8},
-    mode="lines+markers",
-    showlegend=True
-)
 
 # Update layout
 fig.update_layout(
     dragmode="zoom",
     hovermode="x",
     legend=dict(traceorder="reversed"),
-    height=800,
+    height=1200,
     template="plotly_white",
     margin=dict(
         t=100,
@@ -159,69 +169,76 @@ fig.update_layout(
     ),
 )
 
+
+num_jogador_extra = 40
+top_player_pts[num_jogador_extra]
+fig.add_trace(go.Scatter(x=ds_top_player.loc[top_player_pts[num_jogador_extra]].num_season_col.astype(int),
+                         y=ds_top_player.loc[top_player_pts[num_jogador_extra]].tot_pts_acum.astype(int),
+                         name = top_player_pts[num_jogador_extra],
+                         text=ds_top_player.loc[top_player_pts[num_jogador_extra]].Year.astype(int),
+                        )
+                )
+
+
 #offline.iplot(fig)
 fig.show()
 
+#ds_top_player[0:5]
 
 
 
-# ### Range slider
-# We can add a range slider to an axis to allow the range of data displayed to be restricted
-'''
-layout = dict(title = nome_title,              
-              xaxis = dict(rangeslider=dict(),
-                           type='date')
-             )
-'''
-layout = dict(title = nome_title,              
-              rangeslider=dict(visible=True)
-             )
 
-fig = dict(data=data, 
-           layout=layout)
+fig = go.Figure()
 
-offline.iplot(fig)
+for i,nome_jogador in enumerate(top_player_pts[0:5]):
+    print(nome_jogador,i)
+    fig.add_trace(go.Bar(name=nome_jogador, 
+                        x=ds_top_player.loc[nome_jogador].num_season_col.astype(int), 
+                        y=ds_top_player.loc[nome_jogador].PTS.astype(int),
+                        text=ds_top_player.loc[nome_jogador].PTS.astype(int),
+                        textposition='auto',
+                        )
+                        )
 
-#%% [markdown]
-# #### Range Selector
-# In addition to range sliders, we can include rangeselector buttons where we can quickly restrict the plotted range:
-# * <b>step</b> is a time interval to set the range. Can be year, month, day, hour, minute, second and all
-# * <b>stepmode</b> value can be 'todate' or 'backward'. 
-#  * A value of 'todate' with a step of 'month' means that the left of the range slider will move to the start of the month (and the right will remain where it is)
-#  * A value of 'backward' will keep the right slider where it is, and shift the left slider back by the value of count. In our example, the left slider will move back 6 months from the position of the right slider
 
-#%%
-layout = dict(
-    
-    title = 'Amazon Stock Price Data ',
-    
-    xaxis = dict(rangeselector = dict(buttons = list([dict(count = 1,
-                                                           label = '1m',
-                                                           step = 'month',
-                                                           stepmode = 'todate'),
-                                                  
-                                                      dict(count = 6,
-                                                           label = '6m',
-                                                           step = 'month',
-                                                           stepmode = 'backward'),
-                                                  
-                                                      dict(step = 'all')])
-                                     ),
-                 
-                 rangeslider=dict(),
-                 type='date'
+fig.update_traces(marker_line_color='rgb(8,48,107)',
+                  marker_line_width=1.0, opacity=0.95)
+
+# Change the bar mode
+fig.update_layout(
+    title='Total de Pontos por Temporada',
+    xaxis_tickfont_size=16,
+    yaxis=dict(
+        title='Pontos',
+        titlefont_size=16,
+        tickfont_size=14,
+    ),
+    legend=dict(
+        x=0,
+        y=1.0,
+        bgcolor='rgba(255, 255, 255, 0)',
+        bordercolor='rgba(255, 255, 255, 0)'
+    ),
+    barmode='group',
+    bargap=0.5, # gap between bars of adjacent location coordinates.
+    bargroupgap=0.05 # gap between bars of the same location coordinate.
+)
+
+fig.update_layout(
+    xaxis=go.layout.XAxis(
+        autorange=True,
+        range=[0, 20],
+        rangeslider=dict(
+            autorange=True,
+            range=[0, 20]
+        ),
+        type="linear"
     )
 )
 
-
-#%%
-fig = dict(data=data, 
-           layout=layout)
-
-offline.iplot(fig)
+fig.update_xaxes(tick0=1, dtick=1)
 
 
-#%%
-
+fig.show()
 
 
