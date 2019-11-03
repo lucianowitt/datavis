@@ -38,11 +38,11 @@ df['Player'] = df['Player'].str.replace('*','')
 df = df[df['Tm'] != 'TOT']
 
 # ----------------------------------------------------------------------------------------------------------------------------------
-# LUCIANO 
+# PLAYER STATS 
 # ----------------------------------------------------------------------------------------------------------------------------------
 
 # teams
-teams = pd.read_csv('data/teams.csv')
+teams = pd.read_csv('teams.csv')
 teams.head()
 
 # Cria coluna dos links para as fotos
@@ -97,7 +97,7 @@ def get_bar_chart(title='Graph', data=[], x=None, y=None, xtitle=None, ytitle=No
     return figure
 
 # ----------------------------------------------------------------------------------------------------------------------------------
-# GIBSON
+# TOP 5 PLAYERS
 # ----------------------------------------------------------------------------------------------------------------------------------
 
 ds_player = pd.DataFrame(df.groupby(['Player','Year']).agg({'Year':'min','PTS':'sum'}))[['PTS']]
@@ -122,16 +122,6 @@ for i, nome_jogador in enumerate(top_player_pts[0:5]):
             text = ds_top_player.loc[nome_jogador].Year.astype(int)
         )
     )
-
-num_jogador_extra = 40
-top_5_traces_1.append(
-    go.Scatter(
-        x=ds_top_player.loc[top_player_pts[num_jogador_extra]].num_season_col.astype(int),
-        y=ds_top_player.loc[top_player_pts[num_jogador_extra]].tot_pts_acum.astype(int),
-        name = top_player_pts[num_jogador_extra],
-        text=ds_top_player.loc[top_player_pts[num_jogador_extra]].Year.astype(int),
-    )
-)
 
 top_5_layout_1 = {
     'hoverinfo': "name+x+text",
@@ -216,6 +206,12 @@ top_5_layout_2 = {
 }
 
 # ----------------------------------------------------------------------------------------------------------------------------------
+# PLAYER COMPARISON
+# ----------------------------------------------------------------------------------------------------------------------------------
+
+df_pivotado = pd.pivot_table(df,index=["Player"],values=['PF'],aggfunc='sum')
+
+# ----------------------------------------------------------------------------------------------------------------------------------
 # LAYOUT
 # ----------------------------------------------------------------------------------------------------------------------------------
 
@@ -246,7 +242,7 @@ app.layout = html.Div(children=[
             ),
             html.Br(),
             html.Div(id='graph1_area', style={'float':'left', 'width':'100%'}, children=[
-                dcc.Graph(id='graph-pts', figure=get_bar_chart(title='Number of Points'))
+                dcc.Graph(id='graph-pts', figure=get_bar_chart(title='Points per Year'))
             ])
         ]),
         dcc.Tab(label='Top Players', children=[
@@ -265,7 +261,13 @@ app.layout = html.Div(children=[
                 }
             )
         ]),
-        dcc.Tab(label='Tab 3', children=[])
+        dcc.Tab(label='Player Comparison', children=[
+            html.B(children='Select players'),
+            dcc.Dropdown(id='player-comparison-select', options=[{'label': p, 'value': p} for p in players], multi=True),
+            html.Div(id='player-comparison-graph-area', style={'float':'left', 'width':'100%'}, children=[
+                dcc.Graph(id='player-comparison-graph', figure={'data': [], 'layout': {'title': 'Points per Player'}})
+            ])
+        ])
     ])
 ])
 
@@ -286,12 +288,25 @@ def update_dashboard(player_name):
                 team_logos.append(html.Img(src='', width=150, height=150, alt=team_abbr, style={'float':'left', 'border':'1px solid gray', 'margin-left':'10px' }))
             else:
                 team_logos.append(html.Img(src=logo_path, width=150, height=150, alt=logo_alt, style={'float':'left', 'border':'1px solid gray', 'margin-left':'10px' }))
-        pts = get_bar_chart(title='Number of Points', data=player, x='Year', y='PTS', name='Tm')
+        pts = get_bar_chart(title='Points per Year', data=player, x='Year', y='PTS', name='Tm')
     else:
         photo = ''
         team_logos = []
-        pts = get_bar_chart(title='Number of Points')
+        pts = get_bar_chart(title='Points per Year')
     return photo, team_logos, pts
+
+@app.callback(
+    dash.dependencies.Output('player-comparison-graph', 'figure'),
+    [dash.dependencies.Input('player-comparison-select', 'value')])
+def update_figure(selected_player):
+    if isinstance(selected_player,list):
+        filtered_df = df_pivotado[df_pivotado.index.isin(selected_player)]
+    else:
+        filtered_df = df_pivotado[df_pivotado.index == selected_player]
+    return {
+        'data': [{'x': filtered_df.index, 'y': filtered_df.PF, 'type': 'bar', 'name': 'PF'}],
+        'layout': {'title': 'Points per Player'}
+    }
 
 if __name__ == '__main__':
     app.run_server(debug=True)
