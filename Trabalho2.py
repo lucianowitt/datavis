@@ -30,6 +30,10 @@ df['Year'] = df['Year'].astype('int64')
 # Remove asteriscos dos nomes dos jogadores
 df['Player'] = df['Player'].str.replace('*','')
 
+# teams
+teams = pd.read_csv('data/teams.csv')
+teams.head()
+
 # Cria coluna dos links para as fotos
 def build_photo_link(name):
     name_parts = name.split(' ')
@@ -44,46 +48,83 @@ df['Photo'] = df['Player'].apply(build_photo_link)
 players = df['Player'].sort_values().unique()
 print('Jogadores:', len(players))
 
+player = None
+
+def get_figure(title='Graph', data=[], x=None, y=None, xtitle=None, ytitle=None, text=None):
+    if (len(data) > 0):
+        if (xtitle is None):
+            xtitle = x
+        if (ytitle is None):
+            ytitle = y
+        if (text is not None):
+            text = data[text].to_list()
+        figure = {
+            'data': [go.Scatter(x=data[x], y=data[y], text=text)],
+            'layout': {
+                'title': title,
+                'hovermode': 'closest',
+                'xaxis': {'title':x, 'nticks': len(data[x])},
+                'yaxis': {'title':y, 'nticks': len(data[y])}
+            }
+        }
+    else:
+        figure = {'data':[]}
+    return figure
+
 external_stylesheets = ["https://codepen.io/chriddyp/pen/bWLwgP.css"]
 
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 
 app.layout = html.Div(children=[
     html.H1(children='NBA Players since 1950'),
-    dcc.Dropdown(
-        id='player-select',
-        options=[{'label': p, 'value': p} for p in players],
-        multi=False
+    html.Div(id='header', style={'width':'50%'}, children=[
+        html.B(children='Select a player'),
+        dcc.Dropdown(id='player-select', options=[{'label': p, 'value': p} for p in players], multi=False)
+    ]),
+    html.Div(style={'width':'50%'}),
+    html.Div(
+        id='photo_area',
+        style={'float':'left', 'width':'20%', 'textAlign':'center', 'marginTop': '50px'},
+        children=[
+            html.Img(id='photo', src='', width=240, height=200, alt='Photo'),
+            html.Br(),
+            html.Img(id='team_logo', src='', width=150, height=150, alt='Team Logo'),
+        ]
     ),
-    dcc.Graph(id='graph-pts', figure={'data': []}),
-    dcc.Graph(id='graph-efg', figure={'data': []}),
-    html.Img(id='photo', src='', alt='Photo not available'),
-    dash_table.DataTable(
-        id='table',
-        columns=[{"name": i, "id": i} for i in df.columns],
-        data=[]
-    )
+    html.Div(id='graph1_area', style={'float':'left', 'width':'40%'}, children=[
+        dcc.Graph(id='graph-pts', figure=get_figure(title='Number of Points'))
+    ]),
+    html.Div(id='graph2_area', style={'float':'left', 'width':'40%'}, children=[ 
+        dcc.Graph(id='graph-efg', figure=get_figure(title='Effective Field Goal %'))
+    ])
 ])
 
 @app.callback([
     dash.dependencies.Output('photo', 'src'),
+    dash.dependencies.Output('team_logo', 'src'),
+    dash.dependencies.Output('team_logo', 'alt'),
     dash.dependencies.Output('graph-pts', 'figure'),
-    dash.dependencies.Output('graph-efg', 'figure'),
-    dash.dependencies.Output('table', 'data')],
+    dash.dependencies.Output('graph-efg', 'figure')],
     [dash.dependencies.Input('player-select', 'value')])
 def update_dashboard(player_name):
     if (player_name is not None):
         player = df[df['Player'] == player_name]
         photo = player['Photo'].to_list()[0]
-        pts = {'data': [{'x': player['Year'], 'y': player['PTS'], 'type': 'line', 'name': player_name}]}
-        efg = {'data': [{'x': player['Year'], 'y': player['eFG%'], 'type': 'line', 'name': player_name}]}
-        table_data = player.to_dict('records')
+        team_abbr = player['Tm'].to_list()[0]
+        team = teams[teams['Abbr'] == team_abbr]
+        logo_path = team['Logo'].to_list()[0]
+        logo_alt = str(team['Team'].to_list()[0])
+        if (logo_alt == 'nan'):
+            logo_alt = team_abbr
+        pts = get_figure(title='Number of Points', data=player, x='Year', y='PTS', text='Tm')
+        efg = get_figure(title='Effective Field Goal %', data=player, x='Year', y='eFG%', text='Tm')
     else:
         photo = ''
-        pts = {'data':[]}
-        efg = {'data':[]}
-        table_data = []
-    return photo, pts, efg, table_data
+        logo_path = ''
+        logo_alt = 'Team Logo'
+        pts = get_figure(title='Number of Points')
+        efg = get_figure(title='Effective Field Goal %')
+    return photo, logo_path, logo_alt, pts, efg
 
 if __name__ == '__main__':
     app.run_server(debug=True)
